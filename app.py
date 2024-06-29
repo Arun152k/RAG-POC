@@ -20,10 +20,7 @@ from langchain_community.embeddings import (
 )
 import chromadb
 from langchain.retrievers.merger_retriever import MergerRetriever
-from langchain.document_transformers import (
-    EmbeddingsClusteringFilter,
-    EmbeddingsRedundantFilter,
-)
+from langchain.document_transformers import EmbeddingsRedundantFilter
 from langchain.chains import RetrievalQA
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline
 from langchain.prompts import PromptTemplate
