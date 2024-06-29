@@ -131,9 +131,37 @@ def setup_vector_stores(documents, embeddings):
 
 
 def add_to_store(document, embedding, collection_name):
+    # logger.info(f"Adding documents to store: {collection_name}")
+    # DB_DIR = "/app/db2"
+    # os.makedirs(DB_DIR, exist_ok=True)
+
+    # client_settings = chromadb.config.Settings(
+    #     is_persistent=True,
+    #     persist_directory=DB_DIR,
+    #     anonymized_telemetry=False,
+    # )
+
+    # vectorstore = Chroma.from_documents(
+    #     document,
+    #     embedding,
+    #     client_settings=client_settings,
+    #     collection_name=collection_name,
+    #     collection_metadata={"hnsw": "cosine"},
+    #     persist_directory=os.path.join(DB_DIR, str(collection_name)),
+    # )
+    # return vectorstore
     logger.info(f"Adding documents to store: {collection_name}")
-    DB_DIR = "/app/db2"
-    os.makedirs(DB_DIR, exist_ok=True)
+    DB_DIR = os.path.join(
+        st.util.get_streamlit_file_path(), "db"
+    )  # Use a relative path inside the Streamlit directory
+    os.makedirs(DB_DIR, exist_ok=True)  # Ensure the directory exists
+
+    # Create dummy text to check dimensions
+    test_text = ["test"]
+    embedding_dim = embedding.embed_documents(
+        [Document(page_content=t) for t in test_text]
+    )[0].embedding.shape[0]
+    logger.info(f"Embedding dimension: {embedding_dim}")
 
     client_settings = chromadb.config.Settings(
         is_persistent=True,
@@ -141,14 +169,19 @@ def add_to_store(document, embedding, collection_name):
         anonymized_telemetry=False,
     )
 
-    vectorstore = Chroma.from_documents(
-        document,
-        embedding,
-        client_settings=client_settings,
-        collection_name=collection_name,
-        collection_metadata={"hnsw": "cosine"},
-        persist_directory=os.path.join(DB_DIR, str(collection_name)),
-    )
+    try:
+        vectorstore = Chroma.from_documents(
+            document,
+            embedding,
+            client_settings=client_settings,
+            collection_name=collection_name,
+            collection_metadata={"hnsw": "cosine", "dimensionality": embedding_dim},
+            persist_directory=os.path.join(DB_DIR, str(collection_name)),
+        )
+    except chromadb.errors.InvalidDimensionException as e:
+        logger.error(f"Dimension error: {e}")
+        raise
+
     return vectorstore
 
 
