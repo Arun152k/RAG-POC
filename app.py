@@ -1,8 +1,3 @@
-import pysqlite3
-import sys
-
-sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
-
 import os
 import openai
 import io
@@ -10,7 +5,7 @@ import streamlit as st
 from dotenv import load_dotenv
 import boto3
 from PyPDF2 import PdfReader
-from langchain_community.vectorstores import Chroma
+from langchain_community.vectorstores import FAISS, Chroma
 from langchain_openai import ChatOpenAI
 from langchain.schema import Document
 from langchain_community.embeddings import (
@@ -18,15 +13,18 @@ from langchain_community.embeddings import (
     OpenAIEmbeddings,
     HuggingFaceBgeEmbeddings,
 )
+import chromadb
 from langchain.retrievers.merger_retriever import MergerRetriever
-from langchain.document_transformers import EmbeddingsRedundantFilter
+from langchain.document_transformers import (
+    EmbeddingsClusteringFilter,
+    EmbeddingsRedundantFilter,
+)
 from langchain.chains import RetrievalQA
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline
 from langchain.prompts import PromptTemplate
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.document_transformers import LongContextReorder
 import logging
-from streamlit_chromadb_connection.chromadb_connection import ChromadbConnection
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -103,7 +101,7 @@ def embedding():
 
     openai_embeddings = OpenAIEmbeddings(openai_api_key=get_openai_api_key())
 
-    return hf_embeddings, hf_bge_embeddings, openai_embeddings
+    return hf_embeddings, hf_bge_embeddings, hf_embeddings
 
 
 def setup_embeddings():
@@ -132,28 +130,23 @@ def setup_vector_stores(documents, embeddings):
 
 def add_to_store(document, embedding, collection_name):
     logger.info(f"Adding documents to store: {collection_name}")
+    DB_DIR = "/app/db2"  # Use a relative path inside the Docker container
+    # os.makedirs(DB_DIR, exist_ok=True)  # Ensure the directory exists
 
-    configuration = {"client": "PersistentClient", "path": "/tmp/.chroma"}
-
-    conn = st.connection(
-        name="persistent_chromadb", type=ChromadbConnection, **configuration
-    )
-
-    embedding_function_name = "DefaultEmbeddingFunction"
-    conn.create_collection(
-        collection_name=collection_name,
-        embedding_function_name=embedding_function_name,
-        embedding_config={},
-        metadata={"hnsw:space": "cosine"},
+    client_settings = chromadb.config.Settings(
+        is_persistent=True,
+        persist_directory=DB_DIR,
+        anonymized_telemetry=False,
     )
 
     vectorstore = Chroma.from_documents(
-        documents=document,
-        embedding=embedding,
-        client=conn,
+        document,
+        embedding,
+        client_settings=client_settings,
         collection_name=collection_name,
+        collection_metadata={"hnsw": "cosine"},
+        persist_directory=os.path.join(DB_DIR, str(collection_name)),
     )
-
     return vectorstore
 
 
@@ -212,6 +205,7 @@ def setup_LLM_QA(RAGPipelineRetriever):
 
 
 def display_chat_history():
+
     for chat in st.session_state.chat_history:
         st.write(f"**Query:** {chat['query']}")
         st.write("**Response:**")
@@ -230,13 +224,6 @@ def display_chat_history():
 
 
 def main():
-
-    st.set_page_config(
-        page_title="RAG POC",
-        layout="centered",
-        initial_sidebar_state="auto",
-    )
-
     st.title("RAG POC")
     st.header(
         "Ask a question based on the [documents](https://drive.google.com/drive/folders/1ljXhVwdBulNN0aU4nAq6pBw8ScfDSsZs?usp=drive_link) indexed:"
@@ -267,6 +254,8 @@ def main():
                 st.session_state.chat_history.append(
                     {"query": question, "response": output}
                 )
+            except openai.error.OpenAIError as e:
+                st.error(f"An error occurred: {str(e)}")
             except Exception as e:
                 st.error(f"An unexpected error occurred: {str(e)}")
 
