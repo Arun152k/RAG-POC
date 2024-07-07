@@ -9,3 +9,4 @@ streamlit==1.35.0
 sentence-transformers
 boto3
 pysqlite3-binary
+streamlit_chromadb_connection
