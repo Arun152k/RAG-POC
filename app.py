@@ -140,7 +140,6 @@ def add_to_store(document, embedding, collection_name):
 
     client_settings = chromadb.config.Settings(
         is_persistent=True,
-        persist_directory=DB_DIR,
         anonymized_telemetry=False,
     )
 
