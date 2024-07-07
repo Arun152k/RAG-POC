@@ -10,7 +10,7 @@ import streamlit as st
 from dotenv import load_dotenv
 import boto3
 from PyPDF2 import PdfReader
-from langchain_community.vectorstores import FAISS, Chroma
+from langchain_community.vectorstores import Chroma
 from langchain_openai import ChatOpenAI
 from langchain.schema import Document
 from langchain_community.embeddings import (
@@ -18,7 +18,6 @@ from langchain_community.embeddings import (
     OpenAIEmbeddings,
     HuggingFaceBgeEmbeddings,
 )
-import chromadb
 from langchain.retrievers.merger_retriever import MergerRetriever
 from langchain.document_transformers import EmbeddingsRedundantFilter
 from langchain.chains import RetrievalQA
@@ -27,6 +26,7 @@ from langchain.prompts import PromptTemplate
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.document_transformers import LongContextReorder
 import logging
+from streamlit_chromadb_connection.chromadb_connection import ChromadbConnection
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -131,42 +131,27 @@ def setup_vector_stores(documents, embeddings):
 
 
 def add_to_store(document, embedding, collection_name):
-    # logger.info(f"Adding documents to store: {collection_name}")
-    # DB_DIR = "/app/db2"
-    # os.makedirs(DB_DIR, exist_ok=True)
-
-    # client_settings = chromadb.config.Settings(
-    #     is_persistent=True,
-    #     persist_directory=DB_DIR,
-    #     anonymized_telemetry=False,
-    # )
-
-    # vectorstore = Chroma.from_documents(
-    #     document,
-    #     embedding,
-    #     client_settings=client_settings,
-    #     collection_name=collection_name,
-    #     collection_metadata={"hnsw": "cosine"},
-    #     persist_directory=os.path.join(DB_DIR, str(collection_name)),
-    # )
-    # return vectorstore
     logger.info(f"Adding documents to store: {collection_name}")
-    DB_DIR = os.path.join(st.util.get_streamlit_file_path(), "db")
-    os.makedirs(DB_DIR, exist_ok=True)
 
-    client_settings = chromadb.config.Settings(
-        is_persistent=True,
-        persist_directory=DB_DIR,
-        anonymized_telemetry=False,
+    configuration = {"client": "PersistentClient", "path": "/tmp/.chroma"}
+
+    conn = st.connection(
+        name="persistent_chromadb", type=ChromadbConnection, **configuration
+    )
+
+    embedding_function_name = "DefaultEmbeddingFunction"
+    conn.create_collection(
+        collection_name=collection_name,
+        embedding_function_name=embedding_function_name,
+        embedding_config={},
+        metadata={"hnsw:space": "cosine"},
     )
 
     vectorstore = Chroma.from_documents(
-        document,
-        embedding,
-        client_settings=client_settings,
+        documents=document,
+        embedding=embedding,
+        client=conn,
         collection_name=collection_name,
-        collection_metadata={"hnsw": "cosine"},
-        persist_directory=os.path.join(DB_DIR, str(collection_name)),
     )
 
     return vectorstore
