@@ -1,8 +1,3 @@
-import pysqlite3
-import sys
-
-sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
-
 import os
 import openai
 import io
@@ -106,7 +101,7 @@ def embedding():
 
     openai_embeddings = OpenAIEmbeddings(openai_api_key=get_openai_api_key())
 
-    return hf_embeddings, hf_bge_embeddings, hf_embeddings
+    return hf_embeddings, hf_bge_embeddings, openai_embeddings
 
 
 def setup_embeddings():
@@ -135,11 +130,12 @@ def setup_vector_stores(documents, embeddings):
 
 def add_to_store(document, embedding, collection_name):
     logger.info(f"Adding documents to store: {collection_name}")
-    DB_DIR = "/app/db2"  # Use a relative path inside the Docker container
-    # os.makedirs(DB_DIR, exist_ok=True)  # Ensure the directory exists
+    DB_DIR = "/app/db2"
+    os.makedirs(DB_DIR, exist_ok=True)
 
     client_settings = chromadb.config.Settings(
         is_persistent=True,
+        persist_directory=DB_DIR,
         anonymized_telemetry=False,
     )
 

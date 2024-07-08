@@ -1,4 +1,4 @@
-chromadb==0.5.2
+chromadb
 langchain==0.2.6
 langchain_community==0.2.6
 langchain_openai==0.1.11
